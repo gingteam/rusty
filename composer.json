@@ -1,0 +1,26 @@
+{
+    "name": "gingteam/rusty",
+    "type": "library",
+    "require": {
+        "workerman/workerman": "^4.0",
+        "swoole/ide-helper": "^4.8",
+        "amphp/amp": "^2.6"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "GingTeam\\Rusty\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "ging-dev",
+            "email": "gingdz11012001@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require-dev": {
+        "phpstan/phpstan": "^1.2",
+        "react/promise": "^2.8"
+    }
+}
