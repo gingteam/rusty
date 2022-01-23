@@ -16,14 +16,7 @@ use Swoole\Timer;
 
 class SwooleDriver extends Driver
 {
-    /** @var resource[] */
     private $streams = [];
-
-    /** @var callable[] */
-    private $readCallbacks = [];
-
-    /** @var callable[] */
-    private $writeCallbacks = [];
 
     /** @var callable */
     private $timerCallback;
@@ -89,13 +82,9 @@ class SwooleDriver extends Driver
 
                     $streamId = (int) $watcher->value;
 
-                    if ($watcher->type & Watcher::READABLE) {
-                        $this->readCallbacks[$streamId] = $callback;
-                    } else {
-                        $this->writeCallbacks[$streamId] = $callback;
-                    }
-
-                    $this->streams[$streamId] = $watcher->value;
+                    $type = $watcher->type & Watcher::READABLE ? 1 : 2;
+                    $this->streams[$streamId][0] = $watcher->value;
+                    $this->streams[$streamId][$type] = $callback;
                     $this->refreshSwoole($streamId);
                     break;
 
@@ -143,11 +132,8 @@ class SwooleDriver extends Driver
             case Watcher::READABLE:
             case Watcher::WRITABLE:
                 $streamId = (int) $watcher->value;
-                if ($watcher->type & Watcher::READABLE) {
-                    unset($this->readCallbacks[$streamId]);
-                } else {
-                    unset($this->writeCallbacks[$streamId]);
-                }
+                $type = $watcher->type & Watcher::READABLE ? 1 : 2;
+                unset($this->streams[$streamId][$type]);
                 Event::del($watcher->value);
                 $this->refreshSwoole($streamId);
                 break;
@@ -173,8 +159,8 @@ class SwooleDriver extends Driver
 
     public function stop()
     {
-        foreach ($this->streams as $fd) {
-            Event::del($fd);
+        foreach ($this->streams as $stream) {
+            Event::del($stream[0]);
         }
         $this->streams = [];
 
@@ -184,22 +170,17 @@ class SwooleDriver extends Driver
 
     private function refreshSwoole(int $id): void
     {
-        $fd = $this->streams[$id];
+        $stream = $this->streams[$id];
+        $fd = $stream[0];
 
-        if (isset($this->readCallbacks[$id])) {
-            if (Event::isset($fd, SWOOLE_EVENT_READ)) {
-                Event::set($fd, $this->readCallbacks[$id], null, SWOOLE_EVENT_READ);
-            } else {
-                Event::add($fd, $this->readCallbacks[$id], null, SWOOLE_EVENT_READ);
-            }
+        if (isset($stream[1])) {
+            $method = Event::isset($fd, SWOOLE_EVENT_READ) ? 'set' : 'add';
+            \call_user_func_array([Event::class, $method], [$fd, $stream[1], null, SWOOLE_EVENT_READ]);
         }
 
-        if (isset($this->writeCallbacks[$id])) {
-            if (Event::isset($fd, SWOOLE_EVENT_WRITE)) {
-                Event::set($fd, null, $this->writeCallbacks[$id], SWOOLE_EVENT_WRITE);
-            } else {
-                Event::add($fd, null, $this->writeCallbacks[$id], SWOOLE_EVENT_WRITE);
-            }
+        if (isset($stream[2])) {
+            $method = Event::isset($fd, SWOOLE_EVENT_WRITE) ? 'set' : 'add';
+            \call_user_func_array([Event::class, $method], [$fd, null, $stream[2], SWOOLE_EVENT_WRITE]);
         }
     }
 }
